@@ -24,7 +24,7 @@ v5環境で動作する、汎用的なFIFOリングバッファを提供しま�
 ## 関数群のドキュメント
 
 ### `void ring_buffer_init(RingBuffer *buffer, uint8_t *memory, size_t
-memory_size, const char *file_name, size_t file_max_size)`
+memory_size, const char *file_name, size_t file_size)`
 
 初期化関数です。メモリバッファと`RingBuffer`構造体のポインタを引数で受け取り、内部状態を初期化します。
 
@@ -32,7 +32,7 @@ memory_size, const char *file_name, size_t file_max_size)`
 - `memory`: メモリバッファのポインタ。
 - `memory_size`: メモリバッファのサイズ。
 - `file_name`: 使用するファイルの名前。
-- `file_max_size`: ファイルの最大サイズ。
+- `file_size`: ファイルの最大サイズ。
 
 ### `int ring_buffer_write(RingBuffer *buffer, const uint8_t *data, size_t
 size)`
@@ -80,26 +80,35 @@ size)`
 #include <stdio.h>
 
 #include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <freertos/semphr.h>
+#include <freertos/task.h>
 
 typedef struct {
   uint8_t *memory_buffer;
   size_t memory_size;
   size_t memory_head;
   size_t memory_tail;
+
   FILE *file;
-  char *file_name;
   size_t file_size;
-  size_t file_max_size;
+  size_t file_head;
+  size_t file_tail;
+
   bool write_finished;
   bool cancelled;
+
   SemaphoreHandle_t mutex;
 } RingBuffer;
 
-void ring_buffer_init(RingBuffer *buffer, uint8_t *memory, size_t memory_size, const char *file_name,
-                      size_t file_max_size);
+#define RING_BUFFER_OK 0
+#define RING_BUFFER_FINISHED -1
+#define RING_BUFFER_CANCELED -2
+#define RING_BUFFER_OVERFLOW 1
+
+void ring_buffer_init(RingBuffer *buffer, uint8_t *memory, size_t memory_size, const char *file_name, size_t file_size);
 int ring_buffer_write(RingBuffer *buffer, const uint8_t *data, size_t size);
-int ring_buffer_read(RingBuffer *buffer, uint8_t *data, size_t size);
+int ring_buffer_read(RingBuffer *buffer, uint8_t *data, size_t size, TickType_t xTicksToWait);
 void ring_buffer_finish_write(RingBuffer *buffer);
 void ring_buffer_cancel(RingBuffer *buffer);
 void ring_buffer_free(RingBuffer *buffer);

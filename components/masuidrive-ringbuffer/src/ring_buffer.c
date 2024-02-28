@@ -1,20 +1,24 @@
 #include "ring_buffer.h"
 
 #include <freertos/task.h>
-#include <memory.h>
-#include <stdio.h>
+
+int _ring_buffer_mem_write(RingBuffer *buffer, const uint8_t *data, size_t size);
+int _ring_buffer_mem_read(RingBuffer *buffer, uint8_t *data, size_t size);
+int _ring_buffer_file_write(RingBuffer *buffer, const uint8_t *data, size_t size);
+int _ring_buffer_file_read(RingBuffer *buffer, uint8_t *data, size_t size);
+void _ring_buffer_create_file(FILE *file, size_t file_size);
 
 // 初期化関数
 void ring_buffer_init(RingBuffer *buffer, uint8_t *memory, size_t memory_size, const char *file_name,
-                      size_t file_max_size) {
+                      size_t file_size) {
   buffer->memory_buffer = memory;
   buffer->memory_size = memory_size;
   buffer->memory_head = 0;
   buffer->memory_tail = 0;
   buffer->file = fopen(file_name, "w+b");
-  buffer->file_name = strdup(file_name);
-  buffer->file_size = 0;
-  buffer->file_max_size = file_max_size;
+  buffer->file_size = file_size;
+  buffer->file_head = 0;
+  buffer->file_tail = 0;
   buffer->write_finished = false;
   buffer->cancelled = false;
   buffer->mutex = xSemaphoreCreateMutex();
@@ -23,57 +27,67 @@ void ring_buffer_init(RingBuffer *buffer, uint8_t *memory, size_t memory_size, c
 // データの書き込み関数
 int ring_buffer_write(RingBuffer *buffer, const uint8_t *data, size_t size) {
   xSemaphoreTake(buffer->mutex, portMAX_DELAY);
-  if (buffer->write_finished || buffer->cancelled) {
-    xSemaphoreGive(buffer->mutex);
-    return -1; // 書き込み終了済みまたはキャンセル済み
-  }
-
-  size_t memory_available = buffer->memory_size - buffer->memory_head;
-  if (size <= memory_available) {
-    memcpy(buffer->memory_buffer + buffer->memory_head, data, size);
-    buffer->memory_head += size;
-    xSemaphoreGive(buffer->mutex);
-    return 0;
-  }
-
-  memcpy(buffer->memory_buffer + buffer->memory_head, data, memory_available);
-  buffer->memory_head += memory_available;
-
-  size_t remaining = size - memory_available;
-  if (buffer->file_size + remaining > buffer->file_max_size) {
-    buffer->cancelled = true;
-    xSemaphoreGive(buffer->mutex);
-    return -1; // ファイル容量オーバー
-  }
-
-  fwrite(data + memory_available, 1, remaining, buffer->file);
-  buffer->file_size += remaining;
-
-  xSemaphoreGive(buffer->mutex);
-  return 0;
-}
-
-// データの読み込み関数
-int ring_buffer_read(RingBuffer *buffer, uint8_t *data, size_t size) {
-  xSemaphoreTake(buffer->mutex, portMAX_DELAY);
-  while (!buffer->write_finished && !buffer->cancelled && buffer->memory_head - buffer->memory_tail < size) {
-    xSemaphoreGive(buffer->mutex);
-    vTaskDelay(1 / portTICK_PERIOD_MS); // 少し待つ
-    xSemaphoreTake(buffer->mutex, portMAX_DELAY);
-  }
 
   if (buffer->cancelled) {
     xSemaphoreGive(buffer->mutex);
-    return -1; // キャンセル済み
+    return RING_BUFFER_CANCELED;
   }
 
-  size_t memory_available = buffer->memory_head - buffer->memory_tail;
-  size_t to_read = size < memory_available ? size : memory_available;
-  memcpy(data, buffer->memory_buffer + buffer->memory_tail, to_read);
-  buffer->memory_tail += to_read;
+  if (buffer->write_finished) {
+    xSemaphoreGive(buffer->mutex);
+    return RING_BUFFER_FINISHED;
+  }
+
+  int result = _ring_buffer_mem_write(buffer, data, size);
+  if (result == RING_BUFFER_OK) {
+    xSemaphoreGive(buffer->mutex);
+    return RING_BUFFER_OK;
+  }
+
+  // メモリオーバーフロー時、ファイルに書き込む
+  result = _ring_buffer_file_write(buffer, data + result, size - result);
+  if (result == RING_BUFFER_OK) {
+    xSemaphoreGive(buffer->mutex);
+    return RING_BUFFER_OK;
+  }
 
   xSemaphoreGive(buffer->mutex);
-  return to_read;
+  return RING_BUFFER_OVERFLOW; // 両方オーバーフロー
+}
+
+// データの読み込み関数
+int ring_buffer_read(RingBuffer *buffer, uint8_t *data, size_t size, TickType_t xTicksToWait) {
+  xSemaphoreTake(buffer->mutex, portMAX_DELAY);
+
+  if (buffer->cancelled) {
+    xSemaphoreGive(buffer->mutex);
+    return RING_BUFFER_CANCELED;
+  }
+
+  size_t read_count = 0;
+  if (size <= buffer->memory_size) {
+    // メモリから読み込む
+    read_count = _ring_buffer_mem_read(buffer, data, size);
+  } else {
+    // メモリから読み込んで、足りなければファイルから読み込む
+    read_count = _ring_buffer_mem_read(buffer, data, buffer->memory_size);
+    if (read_count < buffer->memory_size) {
+      xSemaphoreGive(buffer->mutex);
+      return read_count;
+    }
+    read_count += _ring_buffer_file_read(buffer, data + buffer->memory_size, size - buffer->memory_size);
+  }
+
+  // メモリに空きがあり、ファイルにデータがある場合、ファイルからメモリに移動
+  while (buffer->memory_head != buffer->memory_tail && buffer->file_tail != buffer->file_head) {
+    uint8_t temp;
+    if (_ring_buffer_file_read(buffer, &temp, 1) > 0) {
+      _ring_buffer_mem_write(buffer, &temp, 1);
+    }
+  }
+
+  xSemaphoreGive(buffer->mutex);
+  return read_count;
 }
 
 // 書き込み終了関数
@@ -93,6 +107,5 @@ void ring_buffer_cancel(RingBuffer *buffer) {
 // 解放関数
 void ring_buffer_free(RingBuffer *buffer) {
   fclose(buffer->file);
-  free(buffer->file_name);
   vSemaphoreDelete(buffer->mutex);
 }

@@ -77,9 +77,10 @@ size)`
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 typedef struct {
   uint8_t *memory_buffer;
@@ -95,8 +96,8 @@ typedef struct {
   SemaphoreHandle_t mutex;
 } RingBuffer;
 
-void ring_buffer_init(RingBuffer *buffer, uint8_t *memory, size_t memory_size,
-                      const char *file_name, size_t file_max_size);
+void ring_buffer_init(RingBuffer *buffer, uint8_t *memory, size_t memory_size, const char *file_name,
+                      size_t file_max_size);
 int ring_buffer_write(RingBuffer *buffer, const uint8_t *data, size_t size);
 int ring_buffer_read(RingBuffer *buffer, uint8_t *data, size_t size);
 void ring_buffer_finish_write(RingBuffer *buffer);

@@ -3,6 +3,7 @@ idf_component_register(
     "esp32"
     "esp32s3"
     "esp32c3"
+    "linux"
   INCLUDE_DIRS
     "include"
   SRC_DIRS

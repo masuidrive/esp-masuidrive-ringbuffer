@@ -1,0 +1,10 @@
+idf_component_register(
+    SRCS
+       "test_ringbuffer.c"
+    INCLUDE_DIRS
+      "."
+    PRIV_REQUIRES
+      "esp_event"
+      "unity"
+      "masuidrive-ringbuffer"
+)

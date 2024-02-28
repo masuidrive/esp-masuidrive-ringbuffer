@@ -1,0 +1,10 @@
+version: "1.0.0"
+description: "A thread-safe FIFO ring buffer library for ESP-IDF, supporting memory and disk storage with write completion and cancellation notifications."
+
+url: "https://github.com/masuidrive/esp-masuidrive-ringbuffer"
+license: "Apache-2.0"
+maintainers:
+  - "Yuichiro MASUI <masui@masuidrive.jp>"
+
+dependencies:
+  idf: ">=5.0"

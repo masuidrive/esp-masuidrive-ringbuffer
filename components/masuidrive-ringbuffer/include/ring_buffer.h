@@ -88,12 +88,12 @@ typedef struct {
   uint8_t *memory_buffer;
   size_t memory_size;
   size_t memory_head;
-  size_t memory_tail;
+  size_t memory_len;
 
   FILE *file;
   size_t file_size;
   size_t file_head;
-  size_t file_tail;
+  size_t file_len;
 
   bool write_finished;
   bool cancelled;
@@ -101,9 +101,9 @@ typedef struct {
   SemaphoreHandle_t mutex;
 } RingBuffer;
 
-#define RING_BUFFER_OK 0
-#define RING_BUFFER_FINISHED -1
-#define RING_BUFFER_CANCELED -2
+#define RING_BUFFER_OK -1
+#define RING_BUFFER_FINISHED -2
+#define RING_BUFFER_CANCELED -3
 #define RING_BUFFER_OVERFLOW 1
 
 void ring_buffer_init(RingBuffer *buffer, uint8_t *memory, size_t memory_size, const char *file_name, size_t file_size);

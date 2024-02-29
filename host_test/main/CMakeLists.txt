@@ -1,6 +1,6 @@
 idf_component_register(
     SRCS
-       "test_ring_buffer.c"
+      "test_ring_buffer.c"
     INCLUDE_DIRS
       "."
     PRIV_REQUIRES

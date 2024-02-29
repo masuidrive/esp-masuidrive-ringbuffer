@@ -26,14 +26,14 @@ int _ring_buffer_file_write(RingBuffer *buffer, const uint8_t *data, size_t size
 
   size_t written = 0;
   for (size_t i = 0; i < size; ++i) {
-    size_t next_head = (buffer->file_head + 1) % buffer->file_size;
-    if (next_head == buffer->file_tail) {
-      // ファイルがいっぱいの場合
+    if (buffer->file_len >= buffer->file_size) {
+      // メモリがいっぱいの場合
       return written; // 書き込んだバイト数を返す
     }
-    fseek(buffer->file, buffer->file_head, SEEK_SET);
+    size_t pos = (buffer->file_head + buffer->file_len) % buffer->file_size;
+    fseek(buffer->file, pos, SEEK_SET);
     fwrite(&data[i], 1, 1, buffer->file);
-    buffer->file_head = next_head;
+    buffer->file_len++;
     written++;
   }
 
@@ -47,10 +47,11 @@ int _ring_buffer_file_read(RingBuffer *buffer, uint8_t *data, size_t size) {
   }
 
   size_t read_count = 0;
-  while (read_count < size && buffer->file_tail != buffer->file_head) {
-    fseek(buffer->file, buffer->file_tail, SEEK_SET);
+  while (read_count < size && buffer->file_len > 0) {
+    fseek(buffer->file, buffer->file_head, SEEK_SET);
     fread(&data[read_count++], 1, 1, buffer->file);
-    buffer->file_tail = (buffer->file_tail + 1) % buffer->file_size;
+    buffer->file_head = (buffer->file_head + 1) % buffer->file_size;
+    buffer->file_len--;
   }
 
   return read_count;

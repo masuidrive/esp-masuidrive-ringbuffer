@@ -1,6 +1,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "ring_buffer.h"
+#include "ring_buffer_internal.h"
 #include "unity.h"
 #include <string.h>
 
@@ -23,7 +24,7 @@ TEST_CASE("ring buffer write and read", "[ring_buffer]") {
 
   const char *write_data = "Hello, world!";
   size_t write_size = strlen(write_data);
-  TEST_ASSERT_EQUAL(0, ring_buffer_write(&buffer, (const uint8_t *)write_data, write_size));
+  TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, (const uint8_t *)write_data, write_size));
 
   uint8_t read_data[MEM_BUFFER_SIZE];
   size_t read_size = ring_buffer_read(&buffer, read_data, write_size, portMAX_DELAY);
@@ -41,18 +42,18 @@ TEST_CASE("ring buffer write and read byte by byte", "[ring_buffer]") {
   // Test with memory only
   for (int i = 0; i < MEM_BUFFER_SIZE; i++) {
     uint8_t write_data = (uint8_t)i;
-    TEST_ASSERT_EQUAL(0, ring_buffer_write(&buffer, &write_data, 1));
+    TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, &write_data, 1));
 
     uint8_t read_data;
     size_t read_size = ring_buffer_read(&buffer, &read_data, 1, portMAX_DELAY);
     TEST_ASSERT_EQUAL(1, read_size);
-    TEST_ASSERT_EQUAL(write_data, read_data);
+    TEST_ASSERT_EQUAL(i, read_data);
   }
 
   // Test with file storage
   for (int i = 0; i < FILE_MAX_SIZE; i++) {
     uint8_t write_data = (uint8_t)i;
-    TEST_ASSERT_EQUAL(0, ring_buffer_write(&buffer, &write_data, 1));
+    TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, &write_data, 1));
 
     uint8_t read_data;
     size_t read_size = ring_buffer_read(&buffer, &read_data, 1, portMAX_DELAY);
@@ -74,8 +75,8 @@ TEST_CASE("ring buffer append and read multiple times", "[ring_buffer]") {
 
   // Append and read multiple times
   for (int i = 0; i < 3; i++) {
-    TEST_ASSERT_EQUAL(0, ring_buffer_write(&buffer, (const uint8_t *)write_data1, strlen(write_data1)));
-    TEST_ASSERT_EQUAL(0, ring_buffer_write(&buffer, (const uint8_t *)write_data2, strlen(write_data2)));
+    TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, (const uint8_t *)write_data1, strlen(write_data1)));
+    TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, (const uint8_t *)write_data2, strlen(write_data2)));
 
     uint8_t read_data[20];
     size_t read_size = ring_buffer_read(&buffer, read_data, strlen(expected_result), portMAX_DELAY);
@@ -98,8 +99,8 @@ TEST_CASE("ring buffer partial read and append multiple times", "[ring_buffer]")
 
   // Partial read and append multiple times
   for (int i = 0; i < 3; i++) {
-    TEST_ASSERT_EQUAL(0, ring_buffer_write(&buffer, (const uint8_t *)write_data1, strlen(write_data1)));
-    TEST_ASSERT_EQUAL(0, ring_buffer_write(&buffer, (const uint8_t *)write_data2, strlen(write_data2)));
+    TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, (const uint8_t *)write_data1, strlen(write_data1)));
+    TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, (const uint8_t *)write_data2, strlen(write_data2)));
 
     uint8_t read_data[20];
     size_t read_size = ring_buffer_read(&buffer, read_data, strlen(expected_result1), portMAX_DELAY);
@@ -212,9 +213,145 @@ TEST_CASE("ring buffer cancel", "[ring_buffer]") {
   ring_buffer_free(&buffer);
 }
 
+TEST_CASE("Normal write and read in memory buffer", "[ring_buffer]") {
+  uint8_t memory[MEM_BUFFER_SIZE];
+  RingBuffer buffer;
+  ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
+
+  uint8_t write_data[] = "Hello, world!";
+  size_t write_size = sizeof(write_data);
+  TEST_ASSERT_EQUAL(RING_BUFFER_OK, _ring_buffer_mem_write(&buffer, write_data, write_size));
+
+  uint8_t read_data[write_size];
+  TEST_ASSERT_EQUAL(write_size, _ring_buffer_mem_read(&buffer, read_data, write_size));
+  TEST_ASSERT_EQUAL_MEMORY(write_data, read_data, write_size);
+
+  ring_buffer_free(&buffer);
+}
+
+TEST_CASE("Memory ring buffer write and read byte by byte", "[ring_buffer]") {
+  uint8_t memory[MEM_BUFFER_SIZE];
+  RingBuffer buffer;
+  ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
+
+  // Test with memory only
+  for (int i = 0; i < MEM_BUFFER_SIZE; i++) {
+    uint8_t write_data = (uint8_t)i;
+    TEST_ASSERT_EQUAL(RING_BUFFER_OK, _ring_buffer_mem_write(&buffer, &write_data, 1));
+
+    uint8_t read_data;
+    size_t read_size = _ring_buffer_mem_read(&buffer, &read_data, 1);
+    TEST_ASSERT_EQUAL(1, read_size);
+    TEST_ASSERT_EQUAL(i, read_data);
+  }
+
+  ring_buffer_free(&buffer);
+}
+
+TEST_CASE("Memory overflow detection", "[ring_buffer]") {
+  uint8_t memory[MEM_BUFFER_SIZE];
+  RingBuffer buffer;
+  ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
+
+  uint8_t write_data[MEM_BUFFER_SIZE + 1];
+  memset(write_data, 'A', sizeof(write_data));
+  TEST_ASSERT_EQUAL(MEM_BUFFER_SIZE, _ring_buffer_mem_write(&buffer, write_data, sizeof(write_data)));
+
+  ring_buffer_free(&buffer);
+}
+
+TEST_CASE("Partial read from memory buffer", "[ring_buffer]") {
+  uint8_t memory[MEM_BUFFER_SIZE];
+  RingBuffer buffer;
+  ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
+
+  uint8_t write_data[] = "Hello, world!";
+  size_t write_size = sizeof(write_data);
+  TEST_ASSERT_EQUAL(RING_BUFFER_OK, _ring_buffer_mem_write(&buffer, write_data, write_size));
+
+  size_t read_size = 5;
+  uint8_t read_data[read_size];
+  TEST_ASSERT_EQUAL(read_size, _ring_buffer_mem_read(&buffer, read_data, read_size));
+  TEST_ASSERT_EQUAL_MEMORY(write_data, read_data, read_size);
+
+  ring_buffer_free(&buffer);
+}
+
+// file
+TEST_CASE("Normal write and read in file buffer", "[ring_buffer]") {
+  uint8_t memory[MEM_BUFFER_SIZE];
+  RingBuffer buffer;
+  ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
+
+  uint8_t write_data[] = "Hello, file!";
+  size_t write_size = sizeof(write_data);
+  TEST_ASSERT_EQUAL(RING_BUFFER_OK, _ring_buffer_file_write(&buffer, write_data, write_size));
+
+  uint8_t read_data[write_size];
+  TEST_ASSERT_EQUAL(write_size, _ring_buffer_file_read(&buffer, read_data, write_size));
+  TEST_ASSERT_EQUAL_MEMORY(write_data, read_data, write_size);
+
+  ring_buffer_free(&buffer);
+}
+
+TEST_CASE("File ring buffer write and read byte by byte", "[ring_buffer]") {
+  uint8_t memory[MEM_BUFFER_SIZE];
+  RingBuffer buffer;
+  ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
+
+  // Test with memory only
+  for (int i = 0; i < MEM_BUFFER_SIZE; i++) {
+    uint8_t write_data = (uint8_t)i;
+    TEST_ASSERT_EQUAL(RING_BUFFER_OK, _ring_buffer_file_write(&buffer, &write_data, 1));
+
+    uint8_t read_data;
+    size_t read_size = _ring_buffer_file_read(&buffer, &read_data, 1);
+    TEST_ASSERT_EQUAL(1, read_size);
+    TEST_ASSERT_EQUAL(i, read_data);
+  }
+
+  ring_buffer_free(&buffer);
+}
+
+TEST_CASE("File overflow detection", "[ring_buffer]") {
+  uint8_t memory[MEM_BUFFER_SIZE];
+  RingBuffer buffer;
+  ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
+
+  uint8_t write_data[FILE_MAX_SIZE + 1];
+  memset(write_data, 'B', sizeof(write_data));
+  TEST_ASSERT_EQUAL(FILE_MAX_SIZE, _ring_buffer_file_write(&buffer, write_data, sizeof(write_data)));
+
+  ring_buffer_free(&buffer);
+}
+
+TEST_CASE("Partial read from file buffer", "[ring_buffer]") {
+  uint8_t memory[MEM_BUFFER_SIZE];
+  RingBuffer buffer;
+  ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
+
+  uint8_t write_data[] = "Hello, file!";
+  size_t write_size = sizeof(write_data);
+  TEST_ASSERT_EQUAL(RING_BUFFER_OK, _ring_buffer_file_write(&buffer, write_data, write_size));
+
+  size_t read_size = 5;
+  uint8_t read_data[read_size];
+  TEST_ASSERT_EQUAL(read_size, _ring_buffer_file_read(&buffer, read_data, read_size));
+  TEST_ASSERT_EQUAL_MEMORY(write_data, read_data, read_size);
+
+  ring_buffer_free(&buffer);
+}
+
 void app_main(void) {
   UNITY_BEGIN();
-  unity_run_all_tests();
+  puts(">>>>>>>");
+  puts("Unit tests for ring buffer internal functions");
+  puts("");
+  for (int i = 0; i < unity_get_test_count(); i++) {
+    puts("----");
+    unity_run_test_by_index(i);
+    puts("");
+  }
   UNITY_END();
   exit(0);
 }

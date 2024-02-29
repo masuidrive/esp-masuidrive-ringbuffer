@@ -114,6 +114,75 @@ TEST_CASE("ring buffer partial read and append multiple times", "[ring_buffer]")
   ring_buffer_free(&buffer);
 }
 
+TEST_CASE("Write 3 blocks of size (memory_size - 1), read 1 block, write 1 more block, read all remaining",
+          "[ring_buffer]") {
+  uint8_t memory[MEM_BUFFER_SIZE];
+  RingBuffer buffer;
+  ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
+
+  uint8_t write_data[MEM_BUFFER_SIZE - 1];
+  memset(write_data, 'A', sizeof(write_data));
+
+  // Write 3 blocks of size (memory_size - 1)
+  for (int i = 0; i < 3; i++) {
+    TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, write_data, sizeof(write_data)));
+  }
+
+  // Read 1 block
+  uint8_t read_data[MEM_BUFFER_SIZE];
+  TEST_ASSERT_EQUAL(sizeof(write_data), ring_buffer_read(&buffer, read_data, sizeof(write_data), portMAX_DELAY));
+
+  // Write 1 more block
+  TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, write_data, sizeof(write_data)));
+
+  // Read all remaining
+  size_t total_read = 0;
+  while (total_read < 3 * sizeof(write_data)) {
+    size_t read = ring_buffer_read(&buffer, read_data, sizeof(read_data), portMAX_DELAY);
+    total_read += read;
+    if (read < sizeof(read_data)) {
+      break; // End of data
+    }
+  }
+  TEST_ASSERT_EQUAL(3 * sizeof(write_data), total_read);
+
+  ring_buffer_free(&buffer);
+}
+
+TEST_CASE("Write multiple blocks of size (memory_size / 2), partially read, write more, read all remaining",
+          "[ring_buffer]") {
+  uint8_t memory[MEM_BUFFER_SIZE];
+  RingBuffer buffer;
+  ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
+
+  uint8_t write_data[MEM_BUFFER_SIZE / 2];
+  memset(write_data, 'B', sizeof(write_data));
+
+  // Write and partially read multiple times
+  for (int i = 0; i < 4; i++) {
+    TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, write_data, sizeof(write_data)));
+    uint8_t read_data[MEM_BUFFER_SIZE / 4];
+    TEST_ASSERT_EQUAL(sizeof(read_data), ring_buffer_read(&buffer, read_data, sizeof(read_data), portMAX_DELAY));
+  }
+
+  // Write one more block
+  TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, write_data, sizeof(write_data)));
+
+  // Read all remaining
+  size_t total_read = 0;
+  uint8_t read_data[MEM_BUFFER_SIZE];
+  while (true) {
+    size_t read = ring_buffer_read(&buffer, read_data, sizeof(read_data), portMAX_DELAY);
+    total_read += read;
+    if (read < sizeof(read_data)) {
+      break; // End of data
+    }
+  }
+  TEST_ASSERT_EQUAL(4 * sizeof(write_data), total_read);
+
+  ring_buffer_free(&buffer);
+}
+
 TEST_CASE("ring buffer write overflow", "[ring_buffer]") {
   uint8_t memory[MEM_BUFFER_SIZE];
   RingBuffer buffer;

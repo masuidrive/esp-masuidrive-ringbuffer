@@ -217,7 +217,7 @@ TEST_CASE("ring buffer cancel", "[ring_buffer]") {
   ring_buffer_free(&buffer);
 }
 
-TEST_CASE("Normal write and read in memory buffer", "[ring_buffer]") {
+TEST_CASE("Normal write and read in memory buffer", "[ring_buffer mem]") {
   uint8_t memory[MEM_BUFFER_SIZE];
   RingBuffer buffer;
   ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
@@ -233,7 +233,7 @@ TEST_CASE("Normal write and read in memory buffer", "[ring_buffer]") {
   ring_buffer_free(&buffer);
 }
 
-TEST_CASE("Memory ring buffer write and read byte by byte", "[ring_buffer]") {
+TEST_CASE("Memory ring buffer write and read byte by byte", "[ring_buffer mem]") {
   uint8_t memory[MEM_BUFFER_SIZE];
   RingBuffer buffer;
   ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
@@ -252,7 +252,7 @@ TEST_CASE("Memory ring buffer write and read byte by byte", "[ring_buffer]") {
   ring_buffer_free(&buffer);
 }
 
-TEST_CASE("Memory overflow detection", "[ring_buffer]") {
+TEST_CASE("Memory overflow detection", "[ring_buffer mem]") {
   uint8_t memory[MEM_BUFFER_SIZE];
   RingBuffer buffer;
   ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
@@ -264,7 +264,7 @@ TEST_CASE("Memory overflow detection", "[ring_buffer]") {
   ring_buffer_free(&buffer);
 }
 
-TEST_CASE("Partial read from memory buffer", "[ring_buffer]") {
+TEST_CASE("Partial read from memory buffer", "[ring_buffer mem]") {
   uint8_t memory[MEM_BUFFER_SIZE];
   RingBuffer buffer;
   ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
@@ -282,7 +282,7 @@ TEST_CASE("Partial read from memory buffer", "[ring_buffer]") {
 }
 
 // file
-TEST_CASE("Normal write and read in file buffer", "[ring_buffer]") {
+TEST_CASE("Normal write and read in file buffer", "[ring_buffer mem]") {
   uint8_t memory[MEM_BUFFER_SIZE];
   RingBuffer buffer;
   ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
@@ -298,7 +298,7 @@ TEST_CASE("Normal write and read in file buffer", "[ring_buffer]") {
   ring_buffer_free(&buffer);
 }
 
-TEST_CASE("File ring buffer write and read byte by byte", "[ring_buffer]") {
+TEST_CASE("File ring buffer write and read byte by byte", "[ring_buffer file]") {
   uint8_t memory[MEM_BUFFER_SIZE];
   RingBuffer buffer;
   ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
@@ -317,7 +317,7 @@ TEST_CASE("File ring buffer write and read byte by byte", "[ring_buffer]") {
   ring_buffer_free(&buffer);
 }
 
-TEST_CASE("File overflow detection", "[ring_buffer]") {
+TEST_CASE("File overflow detection", "[ring_buffer file]") {
   uint8_t memory[MEM_BUFFER_SIZE];
   RingBuffer buffer;
   ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
@@ -329,7 +329,7 @@ TEST_CASE("File overflow detection", "[ring_buffer]") {
   ring_buffer_free(&buffer);
 }
 
-TEST_CASE("Partial read from file buffer", "[ring_buffer]") {
+TEST_CASE("Partial read from file buffer", "[ring_buffer file]") {
   uint8_t memory[MEM_BUFFER_SIZE];
   RingBuffer buffer;
   ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);

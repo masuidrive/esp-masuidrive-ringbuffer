@@ -19,6 +19,14 @@ void ring_buffer_init(RingBuffer *buffer, uint8_t *memory, size_t memory_size, c
   buffer->mutex = xSemaphoreCreateMutex();
 }
 
+// バッファに積んであるデータサイズを取得する関数
+size_t ring_buffer_occupied_size(RingBuffer *buffer) {
+  xSemaphoreTake(buffer->mutex, portMAX_DELAY);
+  size_t occupied_size = buffer->memory_len + buffer->file_len;
+  xSemaphoreGive(buffer->mutex);
+  return occupied_size;
+}
+
 // データの書き込み関数
 int ring_buffer_write(RingBuffer *buffer, const uint8_t *data, size_t size) {
   xSemaphoreTake(buffer->mutex, portMAX_DELAY);

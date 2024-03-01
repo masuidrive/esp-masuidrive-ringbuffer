@@ -155,6 +155,7 @@ TEST_CASE("Write multiple blocks of size (memory_size / 2), partially read, writ
   uint8_t memory[MEM_BUFFER_SIZE];
   RingBuffer buffer;
   ring_buffer_init(&buffer, memory, MEM_BUFFER_SIZE, TEST_FILE_NAME, FILE_MAX_SIZE);
+  size_t remain_size = 0;
 
   uint8_t write_data[MEM_BUFFER_SIZE / 2];
   memset(write_data, 'B', sizeof(write_data));
@@ -162,12 +163,15 @@ TEST_CASE("Write multiple blocks of size (memory_size / 2), partially read, writ
   // Write and partially read multiple times
   for (int i = 0; i < 4; i++) {
     TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, write_data, sizeof(write_data)));
+    remain_size += sizeof(write_data);
     uint8_t read_data[MEM_BUFFER_SIZE / 4];
     TEST_ASSERT_EQUAL(sizeof(read_data), ring_buffer_read(&buffer, read_data, sizeof(read_data), portMAX_DELAY));
+    remain_size -= sizeof(read_data);
   }
 
   // Write one more block
   TEST_ASSERT_EQUAL(RING_BUFFER_OK, ring_buffer_write(&buffer, write_data, sizeof(write_data)));
+  remain_size += sizeof(write_data);
 
   // Read all remaining
   size_t total_read = 0;
@@ -179,7 +183,7 @@ TEST_CASE("Write multiple blocks of size (memory_size / 2), partially read, writ
       break; // End of data
     }
   }
-  TEST_ASSERT_EQUAL(4 * sizeof(write_data), total_read);
+  TEST_ASSERT_EQUAL(remain_size, total_read);
 
   ring_buffer_free(&buffer);
 }

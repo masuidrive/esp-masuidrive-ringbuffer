@@ -49,7 +49,10 @@ int _ring_buffer_file_read(RingBuffer *buffer, uint8_t *data, size_t size) {
   size_t read_count = 0;
   while (read_count < size && buffer->file_len > 0) {
     fseek(buffer->file, buffer->file_head, SEEK_SET);
-    fread(&data[read_count++], 1, 1, buffer->file);
+    size_t fread_size = fread(&data[read_count++], 1, 1, buffer->file);
+    if (fread_size != 1) {
+      return RING_BUFFER_CANCELED;
+    }
     buffer->file_head = (buffer->file_head + 1) % buffer->file_size;
     buffer->file_len--;
   }

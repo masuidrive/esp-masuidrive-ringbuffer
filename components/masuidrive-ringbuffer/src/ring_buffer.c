@@ -67,6 +67,11 @@ int ring_buffer_read(RingBuffer *buffer, uint8_t *data, size_t size, TickType_t 
     return RING_BUFFER_CANCELED;
   }
 
+  if (buffer->write_finished) {
+    xSemaphoreGive(buffer->mutex);
+    return RING_BUFFER_FINISHED;
+  }
+
   size_t read_count = 0;
   if (size <= buffer->memory_size) {
     // メモリから読み込む
